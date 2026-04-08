@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Live Sports Hub | Multi-Source Stream Player</title>
+    <!-- Using HLS.js for advanced HLS streaming, and Video.js as a robust fallback -->
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* minor UX, but content selectable */
+        }
+
+        body {
+            background: #0a0f1e;
+            font-family: 'Segoe UI', 'Poppins', system-ui, -apple-system, 'Inter', sans-serif;
+            color: #eef2ff;
+            padding: 20px 24px 40px;
+        }
+
+        /* header area */
+        .header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: baseline;
+            border-bottom: 2px solid #2d3a5e;
+            padding-bottom: 16px;
+            margin-bottom: 28px;
+        }
+        .title-section h1 {
+            font-weight: 700;
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, #E0E7FF, #A5F3FC);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: -0.3px;
+        }
+        .title-section p {
+            font-size: 0.85rem;
+            color: #8a99c4;
+            margin-top: 6px;
+        }
+        .stats-badge {
+            background: #111827;
+            padding: 8px 18px;
+            border-radius: 60px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border: 1px solid #2d3a5e;
+            backdrop-filter: blur(2px);
+        }
+        .stats-badge span {
+            color: #5ee0fa;
+            font-weight: 700;
+        }
+
+        /* main layout: channel sidebar + player area */
+        .dashboard {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+        }
+
+        /* Channel list panel (scrollable) */
+        .channel-sidebar {
+            flex: 1.2;
+            min-width: 260px;
+            background: #0f1322e6;
+            backdrop-filter: blur(4px);
+            border-radius: 28px;
+            border: 1px solid #293450;
+            padding: 16px 12px;
+            box-shadow: 0 20px 35px -12px rgba(0,0,0,0.5);
+            height: calc(100vh - 150px);
+            overflow-y: auto;
+            scrollbar-width: thin;
+        }
+        .channel-sidebar::-webkit-scrollbar {
+            width: 5px;
+        }
+        .channel-sidebar::-webkit-scrollbar-track {
+            background: #1e2538;
+            border-radius: 10px;
+        }
+        .channel-sidebar::-webkit-scrollbar-thumb {
+            background: #4f6f9f;
+            border-radius: 10px;
+        }
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding: 0 8px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .channel-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .channel-item {
+            background: #11161f;
+            border-radius: 18px;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border: 1px solid #2a344a;
+            font-weight: 500;
+        }
+        .channel-item:hover {
+            background: #1a253c;
+            transform: translateX(5px);
+            border-color: #3b6eff;
+        }
+        .channel-item.active {
+            background: linear-gradient(95deg, #1d4ed8, #2563eb);
+            border-color: #60a5fa;
+            box-shadow: 0 6px 12px -8px #1e3a8a;
+        }
+        .channel-logo {
+            font-size: 1.4rem;
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+        }
+        .channel-name {
+            flex: 1;
+            font-size: 0.95rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow-x: hidden;
+            text-overflow: ellipsis;
+        }
+        .live-badge {
+            background: #dc2626;
+            width: 8px;
+            height: 8px;
+            border-radius: 10px;
+            display: inline-block;
+            margin-left: 8px;
+            box-shadow: 0 0 5px #ff4d4d;
+        }
+
+        /* Player panel */
+        .player-panel {
+            flex: 3;
+            min-width: 320px;
+            background: #090c17;
+            border-radius: 32px;
+            border: 1px solid #2c385a;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 40px -12px black;
+        }
+        .video-container {
+            background: #000000;
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: black;
+        }
+        .video-js {
+            width: 100%;
+            height: 100%;
+        }
+        .channel-info-bar {
+            padding: 14px 24px;
+            background: #0b0f1a;
+            border-top: 1px solid #20273f;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .now-playing {
+            font-weight: 600;
+            font-size: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .now-playing span:first-child {
+            background: #2563eb40;
+            padding: 5px 12px;
+            border-radius: 30px;
+            font-size: 0.7rem;
+            font-weight: 400;
+            letter-spacing: 1px;
+        }
+        .stream-status {
+            font-size: 0.75rem;
+            background: #1a253b;
+            padding: 6px 14px;
+            border-radius: 24px;
+            color: #a0b9f0;
+        }
+        .error-message {
+            background: #7f1a1a80;
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 0.75rem;
+            color: #ffb3b3;
+        }
+        button.retry-btn {
+            background: #2d3a60;
+            border: none;
+            color: white;
+            border-radius: 28px;
+            padding: 6px 14px;
+            margin-left: 8px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        @media (max-width: 760px) {
+            body {
+                padding: 12px;
+            }
+            .channel-item {
+                padding: 8px 12px;
+            }
+            .now-playing {
+                font-size: 1rem;
+            }
+            .channel-sidebar {
+                height: 380px;
+            }
+        }
+        .loader-placeholder {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="title-section">
+        <h1>🏆 SPORTS STREAM HUB</h1>
+        <p>Live cricket · Football · F1 · Tennis · Premier League · WWE & more</p>
+    </div>
+    <div class="stats-badge">
+        📡 <span id="channelCount">0</span> channels active · 🎬 HLS Ready
+    </div>
+</div>
+
+<div class="dashboard">
+    <!-- Channels Sidebar -->
+    <div class="channel-sidebar">
+        <div class="sidebar-header">
+            <span>📺 ALL SPORTS TV</span>
+            <span>🔴 LIVE</span>
+        </div>
+        <div id="channelListContainer" class="channel-list">
+            <!-- dynamic channel list injected -->
+            <div class="loader-placeholder">Loading channels...</div>
+        </div>
+    </div>
+
+    <!-- Video Player Section -->
+    <div class="player-panel">
+        <div class="video-container" id="videoContainer">
+            <video id="streamPlayer" class="video-js vjs-big-play-centered" controls preload="auto" 
+                   poster="https://images.unsplash.com/photo-1522778119026-d647f0598c53?w=640&h=360&fit=crop"
+                   style="width:100%;height:100%;">
+                <p class="vjs-no-js">To view this stream please enable JavaScript</p>
+            </video>
+        </div>
+        <div class="channel-info-bar">
+            <div class="now-playing">
+                <span>NOW PLAYING</span>
+                <span id="currentChannelName">Select a channel</span>
+            </div>
+            <div class="stream-status" id="streamStatus">
+                ⚡ Idle
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --------------------------------------------------------------
+    // M3U8 playlist data extracted from the provided EXTINF entries
+    // We preserve exact order and all attributes.
+    // --------------------------------------------------------------
+    const rawPlaylistData = [
+        { name: "ESPN 2", url: "https://n2.zohanayaan.com:1686/hls/espn2.m3u8?md5=4ss3GlXogc1nLkbDoAaabw&expires=1775648631", referrer: "https://executeandship.com/" },
+        { name: "PREMIER SPORTS 1", url: "https://n2.zohanayaan.com:1686/hls/premieruk.m3u8?md5=OyscaIeqcVyq8Vz_wVs5yw&expires=1775648635", referrer: "https://executeandship.com/" },
+        { name: "PTV SPORTS", url: "https://n3.zohanayaan.com:1686/hls/ptvpk.m3u8?md5=fV3HMI5xZKUHCx_g50civg&expires=1775648633", referrer: "https://executeandship.com/" },
+        { name: "SKY SPORTS ACTION", url: "https://n4.zohanayaan.com:1686/hls/skysact.m3u8?md5=YxQ8GfJWpyIvfcvgSoq3eQ&expires=1775648633", referrer: "https://executeandship.com/" },
+        { name: "SKY SPORTS F1", url: "https://n4.zohanayaan.com:1686/hls/skysfor1.m3u8?md5=VOXcq2cFwtaxBecjB6BCKg&expires=1775648633", referrer: "https://executeandship.com/" },
+        { name: "SKY SPORTS FOOTBALL", url: "https://n3.zohanayaan.com:1686/hls/skysfott.m3u8?md5=QbpkHdZXwCN2bdaj3y_Ubg&expires=1775648633", referrer: "https://executeandship.com/" },
+        { name: "SKY SPORTS GOLF", url: "https://n4.zohanayaan.com:1686/hls/skysgol.m3u8?md5=oeNql9KKtlwqur6zQI6XbA&expires=1775648633", referrer: "https://executeandship.com/" },
+        { name: "SKY SPORTS MAIN EVENT", url: "https://n2.zohanayaan.com:1686/hls/skysme.m3u8?md5=kHkNHAKrBeckKq11T80tDw&expires=1775648634", referrer: "https://executeandship.com/" },
+        { name: "SKY SPORTS MIX", url: "https://n4.zohanayaan.com:1686/hls/skysmixx.m3u8?md5=QW09bEqqMA_deeRhh1b6Ng&expires=1775648634", referrer: "https://executeandship.com/" },
+        { name: "SKY SPORTS NEWS", url: "https://n3.zohanayaan.com:1686/hls/skyspnews.m3u8?md5=RxR1by8jkemKhWnc91gG9A&expires=1775648634", referrer: "https://executeandship.com/" },
+        { name: "SKY SPORTS PREMIER LEAGUE", url: "https://n2.zohanayaan.com:1686/hls/skysprem.m3u8?md5=7oq4DBMUhB65-_tcekTdHw&expires=1775648634", referrer: "https://executeandship.com/" },
+        { name: "SKY SPORTS TENNIS", url: "https://n5.zohanayaan.com:1686/hls/skystennis.m3u8?md5=J46pRAfVj9xAjpk7h0xYXQ&expires=1775648634", referrer: "https://executeandship.com/" },
+        { name: "STAR SPORTS 1 HINDI", url: "https://n2.zohanayaan.com:1686/hls/star1in.m3u8?md5=rfQi_WQH9aMtEOqk210VgQ&expires=1775648634", referrer: "https://executeandship.com/" },
+        { name: "TEN SPORTS", url: "https://n3.zohanayaan.com:1686/hls/tenspk.m3u8?md5=tcLgfZ6Reh7AnW_4hGTo2w&expires=1775648635", referrer: "https://executeandship.com/" },
+        { name: "TNT SPORTS 1", url: "https://n2.zohanayaan.com:1686/hls/bbtsp1.m3u8?md5=E6G16OptGa2XU_iNA9MkhQ&expires=1775648635", referrer: "https://executeandship.com/" },
+        { name: "TNT SPORTS 2", url: "https://n3.zohanayaan.com:1686/hls/bbtsp2.m3u8?md5=LewljsLZ7wZz2BGpivxu0g&expires=1775648635", referrer: "https://executeandship.com/" },
+        { name: "TNT SPORTS 4", url: "https://n3.zohanayaan.com:1686/hls/bbtespn.m3u8?md5=3EW47CoXAAcGWtv22iws8Q&expires=1775648635", referrer: "https://executeandship.com/" },
+        { name: "WILLOW EXTRA", url: "https://n5.zohanayaan.com:1686/hls/willowextra.m3u8?md5=rB_71C1bfkOHXhF18C2GpQ&expires=1775648636", referrer: "https://executeandship.com/" },
+        { name: "WILLOW HD", url: "https://n5.zohanayaan.com:1686/hls/willowusa.m3u8?md5=F2CjtyCzRsO-3xDh6pKdQw&expires=1775648636", referrer: "https://executeandship.com/" }
+    ];
+
+    // Helper to update channel count
+    function updateChannelCount() {
+        document.getElementById('channelCount').innerText = rawPlaylistData.length;
+    }
+
+    // ----------------------------------------------
+    // HLS / Video Player Management
+    // We use HLS.js for modern browsers with referrer support via xhr custom,
+    // and fallback to native if possible. Also enforce Referer header for each request.
+    // ----------------------------------------------
+    let currentPlayer = null;
+    let currentHls = null;
+    let activeChannelUrl = null;
+    let retryTimeout = null;
+
+    const videoElement = document.getElementById('streamPlayer');
+    let player = null; // Video.js instance
+
+    // Initialize Video.js player once
+    function initVideoJS() {
+        if (!player) {
+            player = videojs(videoElement, {
+                controls: true,
+                autoplay: false,
+                preload: 'auto',
+                fluid: false,
+                techOrder: ['html5'],
+                html5: {
+                    hls: {
+                        enableLowInitialPlaylist: true,
+                        overrideNative: !Hls.isSupported() ? false : true,  // use hls.js if available
+                    },
+                    nativeAudioTracks: false,
+                    nativeVideoTracks: false
+                }
+            });
+            // handle errors gracefully
+            player.on('error', (e) => {
+                console.warn("Video.js error", e);
+                updateStatusMessage("⚠️ Playback error - try another channel or retry", true);
+            });
+        }
+        return player;
+    }
+
+    // Update status bar text
+    function updateStatusMessage(msg, isError = false) {
+        const statusDiv = document.getElementById('streamStatus');
+        if (isError) {
+            statusDiv.innerHTML = `❌ ${msg}`;
+            statusDiv.style.background = "#7f1a1a80";
+        } else {
+            statusDiv.innerHTML = `🔴 ${msg}`;
+            statusDiv.style.background = "#1a253b";
+        }
+        if (!isError && msg.toLowerCase().includes('playing')) {
+            statusDiv.style.background = "#0f3b2c";
+        }
+    }
+
+    // Function to load stream using HLS.js with custom referrer header
+    function loadStreamWithReferrer(url, referrer) {
+        return new Promise((resolve, reject) => {
+            if (!Hls.isSupported()) {
+                // fallback: native HLS but no referrer control? we will try anyway
+                resolve({ method: 'native', url });
+                return;
+            }
+            const hls = new Hls({
+                xhrSetup: (xhr, urlString) => {
+                    // Set custom Referer header for each segment/manifest request
+                    xhr.setRequestHeader('Referer', referrer);
+                    // optional: also set origin if needed
+                    // xhr.setRequestHeader('Origin', new URL(referrer).origin);
+                },
+                debug: false,
+                enableWorker: true,
+                lowLatencyMode: true,
+            });
+            hls.loadSource(url);
+            hls.attachMedia(videoElement);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                resolve({ method: 'hls.js', hlsInstance: hls });
+            });
+            hls.on(Hls.Events.ERROR, (event, data) => {
+                if (data.fatal) {
+                    reject(new Error(`HLS fatal error: ${data.type}`));
+                } else {
+                    console.warn("HLS non-fatal:", data);
+                }
+            });
+            // store for cleanup
+            currentHls = hls;
+        });
+    }
+
+    // Main function to switch channels
+    async function switchChannel(channel) {
+        // clear any retry timer
+        if (retryTimeout) clearTimeout(retryTimeout);
+        
+        const channelName = channel.name;
+        const streamUrl = channel.url;
+        const referrer = channel.referrer;
+        
+        document.getElementById('currentChannelName').innerText = channelName;
+        updateStatusMessage(`Connecting to ${channelName} ...`);
+        
+        // Cleanup previous player state
+        if (currentHls) {
+            currentHls.destroy();
+            currentHls = null;
+        }
+        if (player) {
+            // pause and reset source
+            player.pause();
+            player.reset();
+        }
+        // reset video element src
+        videoElement.removeAttribute('src');
+        videoElement.load();
+        
+        // re-init videojs tech if needed but we keep player instance
+        activeChannelUrl = streamUrl;
+        
+        try {
+            // attempt to load with referrer support using HLS.js first
+            if (Hls.isSupported()) {
+                const hlsInstance = new Hls({
+                    xhrSetup: (xhr, urlString) => {
+                        xhr.setRequestHeader('Referer', referrer);
+                    },
+                    debug: false,
+                });
+                hlsInstance.loadSource(streamUrl);
+                hlsInstance.attachMedia(videoElement);
+                
+                // store reference
+                currentHls = hlsInstance;
+                
+                await new Promise((resolve, reject) => {
+                    const manifestParsedHandler = () => {
+                        cleanupHandlers();
+                        resolve();
+                    };
+                    const errorHandler = (event, data) => {
+                        cleanupHandlers();
+                        if (data.fatal) reject(new Error(`HLS error: ${data.type}`));
+                        else reject(new Error("Stream loading failed"));
+                    };
+                    function cleanupHandlers() {
+                        hlsInstance.off(Hls.Events.MANIFEST_PARSED, manifestParsedHandler);
+                        hlsInstance.off(Hls.Events.ERROR, errorHandler);
+                    }
+                    hlsInstance.on(Hls.Events.MANIFEST_PARSED, manifestParsedHandler);
+                    hlsInstance.on(Hls.Events.ERROR, errorHandler);
+                    // timeout safeguard
+                    setTimeout(() => {
+                        cleanupHandlers();
+                        reject(new Error("Stream timeout (no manifest)"));
+                    }, 12000);
+                });
+                
+                // autoplay attempt
+                await videoElement.play().catch(e => {
+                    console.warn("Autoplay blocked:", e);
+                    updateStatusMessage("Click play to start", false);
+                });
+                updateStatusMessage(`Playing: ${channelName} (HLS)`);
+            } 
+            else {
+                // fallback to native HLS (Safari) but referrer may be ignored, still try
+                videoElement.src = streamUrl;
+                // For native, we can't set custom referrer easily. but we attempt play.
+                await videoElement.play().catch(e => {
+                    console.warn("Native play error", e);
+                    throw new Error("Cannot play stream natively");
+                });
+                updateStatusMessage(`Playing: ${channelName} (Native)`);
+            }
+            
+            // mark active channel in sidebar
+            highlightActiveChannel(channelName);
+        } catch (err) {
+            console.error("Stream error:", err);
+            updateStatusMessage(`Failed to load ${channelName}`, true);
+            // show error state, allow retry with same channel button? we add simple retry mechanism
+            const statusDiv = document.getElementById('streamStatus');
+            const retryBtn = document.createElement('button');
+            // avoid duplicate buttons
+            if (!statusDiv.querySelector('.retry-btn')) {
+                const btn = document.createElement('button');
+                btn.innerText = '↻ Retry';
+                btn.className = 'retry-btn';
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    switchChannel(channel);
+                };
+                statusDiv.appendChild(btn);
+                setTimeout(() => {
+                    if (statusDiv.contains(btn)) statusDiv.removeChild(btn);
+                }, 8000);
+            }
+            highlightActiveChannel(channelName, true); // just visual without breaking
+        }
+    }
+    
+    function highlightActiveChannel(activeName, isErrorFlag = false) {
+        const allItems = document.querySelectorAll('.channel-item');
+        allItems.forEach(item => {
+            const nameSpan = item.querySelector('.channel-name');
+            if (nameSpan && nameSpan.innerText === activeName) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        });
+        if (!isErrorFlag) {
+            // reset status extra error stuff
+            const statusDiv = document.getElementById('streamStatus');
+            const oldBtn = statusDiv.querySelector('.retry-btn');
+            if (oldBtn) oldBtn.remove();
+        }
+    }
+    
+    // Build channel list dynamically with nice icons & live effect
+    function buildChannelList() {
+        const container = document.getElementById('channelListContainer');
+        container.innerHTML = '';
+        
+        rawPlaylistData.forEach((ch, idx) => {
+            const channelDiv = document.createElement('div');
+            channelDiv.className = 'channel-item';
+            // assign simple emoji based on keywords
+            let icon = '📡';
+            const nameUpper = ch.name.toUpperCase();
+            if (nameUpper.includes('ESPN')) icon = '🏈';
+            else if (nameUpper.includes('PREMIER')) icon = '⚽';
+            else if (nameUpper.includes('PTV')) icon = '🇵🇰';
+            else if (nameUpper.includes('SKY SPORTS')) {
+                if (nameUpper.includes('F1')) icon = '🏎️';
+                else if (nameUpper.includes('FOOTBALL')) icon = '⚽';
+                else if (nameUpper.includes('GOLF')) icon = '⛳';
+                else if (nameUpper.includes('TENNIS')) icon = '🎾';
+                else icon = '🔵';
+            }
+            else if (nameUpper.includes('STAR SPORTS')) icon = '⭐';
+            else if (nameUpper.includes('TEN SPORTS')) icon = '🎾';
+            else if (nameUpper.includes('TNT')) icon = '💥';
+            else if (nameUpper.includes('WILLOW')) icon = '🏏';
+            else icon = '📺';
+            
+            channelDiv.innerHTML = `
+                <div class="channel-logo">${icon}</div>
+                <div class="channel-name">${ch.name}</div>
+                <span class="live-badge"></span>
+            `;
+            channelDiv.addEventListener('click', () => {
+                switchChannel(ch);
+            });
+            container.appendChild(channelDiv);
+        });
+        updateChannelCount();
+        // auto-select first channel as default after build (optional)
+        if (rawPlaylistData.length > 0) {
+            setTimeout(() => {
+                switchChannel(rawPlaylistData[0]);
+            }, 200);
+        }
+    }
+    
+    // initialization: create Video.js player, build UI, handle visibility
+    window.addEventListener('DOMContentLoaded', () => {
+        initVideoJS();
+        buildChannelList();
+        // small extra: handle page visibility to avoid stream issues
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // do nothing heavy, but can pause if needed: we avoid aggressive pause for UX
+            } else {
+                if (player && player.paused() && activeChannelUrl) {
+                    // optional: resume but not auto due to browser policies
+                }
+            }
+        });
+    });
+</script>
+</body>
+</html>
